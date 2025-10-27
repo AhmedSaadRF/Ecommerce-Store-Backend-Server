@@ -1,6 +1,6 @@
 import pkg from "pg";
 import { config } from 'dotenv';
-config({ path: '../config/config.env' });
+config({ path: './config/config.env' });
 
 const { Client } = pkg;
 
