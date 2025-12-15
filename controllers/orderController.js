@@ -78,8 +78,7 @@ export const placeNewOrder = catchAsyncErrors(async (req, res, next) => {
     const offset = index * 6;
 
     placeholders.push(
-      `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${
-        offset + 5
+      `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5
       }, $${offset + 6})`
     );
   });
@@ -136,33 +135,25 @@ export const fetchSingleOrder = catchAsyncErrors(async (req, res, next) => {
   const result = await database.query(
     `
     SELECT 
- o.*, 
- COALESCE(
- json_agg(
-json_build_object(
-'order_item_id', oi.id,
-'order_id', oi.order_id,
-'product_id', oi.product_id,
-'quantity', oi.quantity,
-'price', oi.price
- )
- ) FILTER (WHERE oi.id IS NOT NULL), '[]'
- ) AS order_items,
- json_build_object(
- 'full_name', s.full_name,
- 'state', s.state,
- 'city', s.city,
- 'country', s.country,
- 'address', s.address,
- 'pincode', s.pincode,
- 'phone', s.phone
- ) AS shipping_info
-FROM orders o
-LEFT JOIN order_items oi ON o.id = oi.order_id
-LEFT JOIN shipping_info s ON o.id = s.order_id
-WHERE o.id = $1
-GROUP BY o.id, s.id;
-`,
+      o.*, 
+      COALESCE(json_agg(oi ORDER BY oi.created_at) FILTER (WHERE oi.id IS NOT NULL), '[]'::json) AS order_items,
+      (SELECT json_build_object(
+        'full_name', s.full_name,
+        'state', s.state,
+        'city', s.city,
+        'country', s.country,
+        'address', s.address,
+        'pincode', s.pincode,
+        'phone', s.phone
+      ) 
+      FROM shipping_info s 
+      WHERE s.order_id = o.id 
+      LIMIT 1) AS shipping_info
+    FROM orders o
+    LEFT JOIN order_items oi ON o.id = oi.order_id
+    WHERE o.id = $1
+    GROUP BY o.id
+    `,
     [orderId]
   );
 
@@ -176,36 +167,31 @@ GROUP BY o.id, s.id;
 export const fetchMyOrders = catchAsyncErrors(async (req, res, next) => {
   const result = await database.query(
     `
-        SELECT o.*, COALESCE(
- json_agg(
-  json_build_object(
- 'order_item_id', oi.id,
- 'order_id', oi.order_id,
- 'product_id', oi.product_id,
- 'quantity', oi.quantity,
- 'price', oi.price,
- 'image', oi.image,
- 'title', oi.title
-  ) 
- ) FILTER (WHERE oi.id IS NOT NULL), '[]'
- ) AS order_items,
-json_build_object(
- 'full_name', s.full_name,
- 'state', s.state,
- 'city', s.city,
- 'country', s.country,
- 'address', s.address,
- 'pincode', s.pincode,
- 'phone', s.phone
- ) AS shipping_info 
- FROM orders o
- LEFT JOIN order_items oi ON o.id = oi.order_id
- LEFT JOIN shipping_info s ON o.id = s.order_id
-WHERE o.buyer_id = $1 AND o.paid_at IS NOT NULL
-GROUP BY o.id, s.id
+        SELECT 
+          o.*,
+          COALESCE(json_agg(oi ORDER BY oi.created_at) FILTER (WHERE oi.id IS NOT NULL), '[]'::json) AS order_items,
+          (SELECT json_build_object(
+            'full_name', s.full_name,
+            'state', s.state,
+            'city', s.city,
+            'country', s.country,
+            'address', s.address,
+            'pincode', s.pincode,
+            'phone', s.phone
+          ) 
+          FROM shipping_info s 
+          WHERE s.order_id = o.id 
+          LIMIT 1) AS shipping_info
+        FROM orders o
+        LEFT JOIN order_items oi ON o.id = oi.order_id
+        WHERE o.buyer_id = $1
+        GROUP BY o.id
+        ORDER BY o.created_at DESC
         `,
     [req.user.id]
   );
+
+  console.log("Fetched orders for user:", req.user.id, "- Count:", result.rows.length);
 
   res.status(200).json({
     success: true,
@@ -216,31 +202,26 @@ GROUP BY o.id, s.id
 
 export const fetchAllOrders = catchAsyncErrors(async (req, res, next) => {
   const result = await database.query(`
-            SELECT o.*,
- COALESCE(json_agg(
- json_build_object(
- 'order_item_id', oi.id,
- 'order_id', oi.order_id,
- 'product_id', oi.product_id,
- 'quantity', oi.quantity,
- 'price', oi.price,
- 'image', oi.image,
- 'title', oi.title
-)
-) FILTER (WHERE oi.id IS NOT NULL), '[]' ) AS order_items, json_build_object(
-'full_name', s.full_name,
- 'state', s.state,
- 'city', s.city,
- 'country', s.country,
- 'address', s.address,
- 'pincode', s.pincode,
- 'phone', s.phone 
-) AS shipping_info
-FROM orders o
-LEFT JOIN order_items oi ON o.id = oi.order_id
-LEFT JOIN shipping_info s ON o.id = s.order_id
-WHERE o.paid_at IS NOT NULL
-GROUP BY o.id, s.id
+            SELECT 
+              o.*,
+              COALESCE(json_agg(oi ORDER BY oi.created_at) FILTER (WHERE oi.id IS NOT NULL), '[]'::json) AS order_items,
+              (SELECT json_build_object(
+                'full_name', s.full_name,
+                'state', s.state,
+                'city', s.city,
+                'country', s.country,
+                'address', s.address,
+                'pincode', s.pincode,
+                'phone', s.phone
+              ) 
+              FROM shipping_info s 
+              WHERE s.order_id = o.id 
+              LIMIT 1) AS shipping_info
+            FROM orders o
+            LEFT JOIN order_items oi ON o.id = oi.order_id
+            WHERE o.paid_at IS NOT NULL
+            GROUP BY o.id
+            ORDER BY o.created_at DESC
         `);
 
   res.status(200).json({

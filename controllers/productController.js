@@ -39,7 +39,7 @@ export const createProduct = catchAsyncErrors(async (req, res, next) => {
     [
       name,
       description,
-      price / 48.5,
+      price,
       category,
       stock,
       JSON.stringify(uploadedImages),
@@ -195,7 +195,7 @@ export const updateProduct = catchAsyncErrors(async (req, res, next) => {
   }
   const result = await database.query(
     `UPDATE products SET name = $1, description = $2, price = $3, category = $4, stock = $5 WHERE id = $6 RETURNING *`,
-    [name, description, price / 283, category, stock, productId]
+    [name, description, price, category, stock, productId]
   );
   res.status(200).json({
     success: true,
@@ -277,14 +277,14 @@ export const postProductReview = catchAsyncErrors(async (req, res, next) => {
   if (!rating || !comment) {
     return next(new ErrorHandler("Please provide rating and comment.", 400));
   }
+  // Check if user has purchased this product (check for paid orders)
   const purchasheCheckQuery = `
     SELECT oi.product_id
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
-    JOIN payments p ON p.order_id = o.id
     WHERE o.buyer_id = $1
     AND oi.product_id = $2
-    AND p.payment_status = 'Paid'
+    AND o.paid_at IS NOT NULL
     LIMIT 1 
   `;
 
@@ -512,7 +512,7 @@ export const fetchAIFilteredProducts = catchAsyncErrors(
     res.status(200).json({
       success: success,
       message: "AI filtered products.",
-      products,
+      products: products || [],
     });
   }
 );

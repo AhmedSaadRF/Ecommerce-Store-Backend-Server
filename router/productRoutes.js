@@ -24,7 +24,7 @@ router.post(
 );
 router.get("/", fetchAllProducts);
 router.get("/singleProduct/:productId", fetchSingleProduct);
-router.put("/post-new/review/:productId", isAuthenticated, postProductReview);
+router.post("/post-new/review/:productId", isAuthenticated, postProductReview);
 router.delete("/delete/review/:productId", isAuthenticated, deleteReview);
 router.put(
   "/admin/update/:productId",

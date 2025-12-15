@@ -43,21 +43,35 @@ app.post(
     // Handling the Event
 
     if (event.type === "payment_intent.succeeded") {
-      const paymentIntent_client_secret = event.data.object.client_secret;
+      const paymentIntentId = event.data.object.id;
+      console.log("Payment succeeded webhook received for payment intent:", paymentIntentId);
+      
       try {
         // FINDING AND UPDATED PAYMENT
         const updatedPaymentStatus = "Paid";
         const paymentTableUpdateResult = await database.query(
           `UPDATE payments SET payment_status = $1 WHERE payment_intent_id = $2 RETURNING *`,
-          [updatedPaymentStatus, paymentIntent_client_secret]
+          [updatedPaymentStatus, paymentIntentId]
         );
-        await database.query(
+        
+        if (paymentTableUpdateResult.rows.length === 0) {
+          console.error("No payment record found for payment_intent_id:", paymentIntentId);
+          return res.status(404).send("Payment record not found");
+        }
+        
+        console.log("Payment updated successfully for order:", paymentTableUpdateResult.rows[0].order_id);
+        
+        const orderId = paymentTableUpdateResult.rows[0].order_id;
+        
+        // Update the order to mark it as paid
+        const orderUpdateResult = await database.query(
           `UPDATE orders SET paid_at = NOW() WHERE id = $1 RETURNING *`,
-          [paymentTableUpdateResult.rows[0].order_id]
+          [orderId]
         );
+        
+        console.log("✅ Order marked as paid:", orderUpdateResult.rows[0]);
 
         // Reduce Stock For Each Product
-        const orderId = paymentTableUpdateResult.rows[0].order_id;
 
         const { rows: orderedItems } = await database.query(
           `
